@@ -18,6 +18,7 @@ class Cart(models.Model):
         return sum(item.item_total_price() for item in self.items.all())
 
 
+
 class CartItem(models.Model):
     cart = models.ForeignKey(
         Cart,
@@ -30,6 +31,9 @@ class CartItem(models.Model):
     )
     quantity = models.PositiveIntegerField()
 
+    class Meta:
+        unique_together = ('cart', 'product')
+
     def __str__(self):
         return f"{self.product.name} ({self.quantity} шт.)"
 
@@ -37,12 +41,12 @@ class CartItem(models.Model):
         return self.product.price * self.quantity
 
     def clean(self):
-        if self.quantity > self.product.quantity:
+        if self.product and self.quantity > self.product.quantity:
             raise ValidationError(
-                f"Недостаточно товара на складе. Доступно: {self.product.quantity}"
+                f"Недостаточно товара. Доступно: {self.product.quantity}"
             )
 
     def save(self, *args, **kwargs):
-        self.clean()
+        self.full_clean()
         super().save(*args, **kwargs)
 

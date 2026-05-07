@@ -77,7 +77,13 @@
        class="btn btn-secondary">
         ← Продолжить покупки
     </a>
+
+    <a href="{% url 'checkout' %}"
+       class="btn btn-success">
+        ✅ Оформить заказ
+    </a>
 </div>
+
 
 {% else %}
     <div class="alert alert-info">

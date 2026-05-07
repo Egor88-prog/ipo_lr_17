@@ -2,10 +2,20 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Q
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from .models import Product, Category, Manufacture
-from users.models import Cart, CartItem
 from django.contrib.auth.forms import UserCreationForm
 from django.shortcuts import render, redirect
+from django.db import transaction
+from django.core.mail import EmailMessage
+from django.conf import settings
+from django.utils import timezone
+from io import BytesIO
+import openpyxl
+
+from .models import Product, Category, Manufacture
+from users.models import Cart, CartItem
+from .models import Order, OrderItem
+
+
 
 
 def get_user_cart(user):
@@ -132,6 +142,102 @@ def cart_view(request):
     }
 
     return render(request, 'shop/cart.html', context)
+
+def register(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('login')
+    else:
+        form = UserCreationForm()
+
+    return render(request, 'registration/register.html', {'form': form})
+
+@login_required
+@transaction.atomic
+def checkout(request):
+    cart = get_user_cart(request.user)
+    cart_items = cart.items.select_related('product')
+
+    if not cart_items.exists():
+        return redirect('cart')
+
+    order = Order.objects.create(
+        user=request.user,
+        created_at=timezone.now()
+    )
+
+    total_price = 0
+
+    for item in cart_items:
+        if item.quantity > item.product.quantity:
+            raise ValidationError(
+                f"Недостаточно товара: {item.product.name}"
+            )
+
+        OrderItem.objects.create(
+            order=order,
+            product=item.product,
+            quantity=item.quantity,
+            price=item.product.price
+        )
+
+        # уменьшаем количество товара на складе
+        item.product.quantity -= item.quantity
+        item.product.save()
+
+        total_price += item.quantity * item.product.price
+
+    order.total_price = total_price
+    order.save()
+
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Receipt"
+
+    sheet.append(["Чек №", order.id])
+    sheet.append(["Дата", order.created_at.strftime("%Y-%m-%d %H:%M")])
+    sheet.append([])
+    sheet.append(["Товар", "Количество", "Цена", "Сумма"])
+
+    for item in order.items.all():
+        sheet.append([
+            item.product.name,
+            item.quantity,
+            float(item.price),
+            float(item.quantity * item.price)
+        ])
+
+    sheet.append([])
+    sheet.append(["ИТОГО", "", "", float(total_price)])
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+
+    print("USER EMAIL:", request.user.email)
+
+    email = EmailMessage(
+        subject=f"Ваш заказ №{order.id}",
+        body="Спасибо за покупку! Чек во вложении.",
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[request.user.email],
+    )
+
+    email.attach(
+        f"receipt_{order.id}.xlsx",
+        buffer.read(),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    email.send()
+
+    cart.items.all().delete()
+
+    return render(request, 'shop/checkout_success.html', {
+        'order': order
+    })
 
 def register(request):
     if request.method == 'POST':

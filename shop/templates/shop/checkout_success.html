@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Оформление заказа</title>
+</head>
+<body>
+
+   {% extends "base.html" %}
+{% block content %}
+
+<h2 class="mb-4">Оформление заказа</h2>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="mb-3">
+                <label class="form-label">ФИО</label>
+                <input type="text"
+                       name="full_name"
+                       class="form-control"
+                       placeholder="Введите ваше имя"
+                       required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Телефон</label>
+                <input type="text"
+                       name="phone"
+                       class="form-control"
+                       placeholder="+375 (___) ___-__-__"
+                       required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Адрес доставки</label>
+                <textarea name="address"
+                          class="form-control"
+                          rows="3"
+                          placeholder="Введите адрес доставки"
+                          required></textarea>
+            </div>
+
+            <div class="d-flex justify-content-between mt-4">
+
+                <a href="{% url 'cart' %}"
+                   class="btn btn-secondary">
+                    ← Вернуться в корзину
+                </a>
+
+                <button type="submit"
+                        class="btn btn-success">
+                    ✅ Подтвердить заказ
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+</div>
+
+{% endblock %}
+</body>
+</html>

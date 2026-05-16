@@ -10,10 +10,18 @@ from django.conf import settings
 from django.utils import timezone
 from io import BytesIO
 import openpyxl
+from rest_framework import viewsets
 
 from .models import Product, Category, Manufacture
 from users.models import Cart, CartItem
 from .models import Order, OrderItem
+from .serializers import (
+    ProductSerializer,
+    CategorySerializer,
+    ManufacturerSerializer,
+    CartSerializer,
+    CartItemSerializer
+)
 
 
 
@@ -249,3 +257,28 @@ def register(request):
         form = UserCreationForm()
 
     return render(request, 'registration/register.html', {'form': form})
+
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+
+
+class ManufacturerViewSet(viewsets.ModelViewSet):
+    queryset = Manufacture.objects.all()
+    serializer_class = ManufacturerSerializer
+
+
+class ProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+
+
+class CartViewSet(viewsets.ModelViewSet):
+    queryset = Cart.objects.all()
+    serializer_class = CartSerializer
+
+
+class CartItemViewSet(viewsets.ModelViewSet):
+    queryset = CartItem.objects.all()
+    serializer_class = CartItemSerializer

@@ -17,6 +17,7 @@ router.register(r'carts', CartViewSet)
 router.register(r'cart-items', CartItemViewSet)
 
 urlpatterns = [
+    path('', views.index,name='index'),
     path('catalog/', views.product_list, name='product_list'),
     path('catalog/<int:pk>/', views.product_detail, name='product_detail'),
     path('cart/', views.cart_view, name='cart'),

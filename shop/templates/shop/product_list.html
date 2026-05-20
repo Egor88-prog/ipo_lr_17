@@ -50,8 +50,8 @@
 </form>
 
 <div class="row">
-    {% for product in products %}
-        <div class="col-md-4 mb-4">
+    {% for product in page_obj %}
+        <div class="col-sm-6 col-md-4 col-lg-4 mb-4">
             <div class="card h-100">
 
                 {% if product.img_product %}
@@ -76,17 +76,25 @@
                     <p>В наличии: {{ product.quantity }}</p>
 
                     <div class="mt-auto">
-                        {% if user.is_authenticated %}
-                            <a href="{% url 'add_to_cart' product.id %}"
-                               class="btn btn-success w-100">
-                                Добавить в корзину
-                            </a>
+
+                        {% if product.quantity > 0 %}
+                            {% if user.is_authenticated %}
+                                <a href="{% url 'add_to_cart' product.id %}"
+                                   class="btn btn-success w-100">
+                                    Добавить в корзину
+                                </a>
+                            {% else %}
+                                <a href="{% url 'login' %}"
+                                   class="btn btn-outline-primary w-100">
+                                    Войти для покупки
+                                </a>
+                            {% endif %}
                         {% else %}
-                            <a href="{% url 'login' %}"
-                               class="btn btn-outline-primary w-100">
-                                Войти для покупки
-                            </a>
+                            <button class="btn btn-secondary w-100" disabled>
+                                Нет в наличии
+                            </button>
                         {% endif %}
+
                     </div>
 
                 </div>
@@ -96,5 +104,36 @@
         <p>Товары не найдены.</p>
     {% endfor %}
 </div>
+
+<!-- ✅ ПАГИНАЦИЯ -->
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link"
+                   href="?page={{ page_obj.previous_page_number }}&q={{ request.GET.q }}&category={{ request.GET.category }}&manufacture={{ request.GET.manufacture }}">
+                    Назад
+                </a>
+            </li>
+        {% endif %}
+
+        <li class="page-item active">
+            <span class="page-link">
+                {{ page_obj.number }}
+            </span>
+        </li>
+
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link"
+                   href="?page={{ page_obj.next_page_number }}&q={{ request.GET.q }}&category={{ request.GET.category }}&manufacture={{ request.GET.manufacture }}">
+                    Вперед
+                </a>
+            </li>
+        {% endif %}
+
+    </ul>
+</nav>
 
 {% endblock %}

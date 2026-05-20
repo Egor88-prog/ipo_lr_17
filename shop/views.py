@@ -2,6 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Q
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.contrib.auth.forms import UserCreationForm
 from django.shortcuts import render, redirect
 from django.db import transaction
@@ -23,7 +24,14 @@ from .serializers import (
     CartItemSerializer
 )
 
+def index(request):
+    products = Product.objects.all()[:6]
+    categories = Category.objects.all()
 
+    return render(request, 'shop/index.html', {
+        'products': products,
+        'categories': categories
+    })
 
 
 def get_user_cart(user):
@@ -282,3 +290,39 @@ class CartViewSet(viewsets.ModelViewSet):
 class CartItemViewSet(viewsets.ModelViewSet):
     queryset = CartItem.objects.all()
     serializer_class = CartItemSerializer
+
+
+def product_list(request):
+    products = Product.objects.select_related(
+        'category',
+        'manufacture'
+    ).all()
+
+    category_id = request.GET.get('category')
+    manufacture_id = request.GET.get('manufacture')
+    search_query = request.GET.get('q')
+
+    if category_id:
+        products = products.filter(category_id=category_id)
+
+    if manufacture_id:
+        products = products.filter(manufacture_id=manufacture_id)
+
+    if search_query:
+        products = products.filter(
+            Q(name__icontains=search_query) |
+            Q(descriptions__icontains=search_query)
+        )
+
+    # ✅ Пагинация (9 товаров)
+    paginator = Paginator(products, 9)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'categories': Category.objects.all(),
+        'manufactures': Manufacture.objects.all(),
+    }
+
+    return render(request, 'shop/product_list.html', context)

@@ -55,7 +55,7 @@
             <div class="card h-100">
 
                 {% if product.img_product %}
-                    <img src="{{ product.img_product.url }}"
+                    <img src="{% if product.img_product %}{{ product.img_product.url }}{% else %}https://placehold.co/300x200?text=No+Image{% endif %}"
                          class="card-img-top"
                          style="height:250px; object-fit:cover;">
                 {% endif %}

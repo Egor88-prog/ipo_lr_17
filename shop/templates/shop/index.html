@@ -15,7 +15,7 @@
     {% for product in products %}
         <div class="col-md-4 mb-4">
             <div class="card h-100">
-                <img src="{{ product.img_product.url }}" class="card-img-top">
+                <img src="{% if product.img_product %}{{ product.img_product.url }}{% else %}https://placehold.co/300x200?text=No+Image{% endif %}" class="card-img-top">
                 <div class="card-body">
                     <h5>{{ product.name }}</h5>
                     <p>{{ product.price }} Br</p>

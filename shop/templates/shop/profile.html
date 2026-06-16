@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container">
+    <h2 class="mb-4">Личный кабинет</h2>
+
+    {% if not user.is_authenticated %}
+        <div class="alert alert-warning">
+            Вы не авторизованы. <a href="{% url 'login' %}" class="alert-link">Войдите</a> в систему.
+        </div>
+    {% else %}
+    <div class="row">
+        <div class="col-md-5">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Профиль</span>
+                    <span class="badge {% if user.profile.role == 'ADMIN' %}bg-danger{% elif user.profile.role == 'MANAGER' %}bg-warning{% else %}bg-primary{% endif %}">
+                        {{ user.profile.get_role_display }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div id="profile-display">
+                        <p><strong>Логин:</strong> <span id="disp-username">{{ user.username }}</span></p>
+                        <p><strong>Email:</strong> <span id="disp-email">{{ user.email }}</span></p>
+                        <p><strong>Имя:</strong> <span id="disp-full_name">{{ user.profile.full_name|default:"—" }}</span></p>
+                        <p><strong>Телефон:</strong> <span id="disp-phone">{{ user.profile.phone|default:"—" }}</span></p>
+                        <p><strong>Адрес:</strong> <span id="disp-address">{{ user.profile.address|default:"—" }}</span></p>
+                        <p><strong>Город доставки:</strong> <span id="disp-city">{{ user.profile.city|default:"—" }}</span></p>
+                        <p><strong>Индекс:</strong> <span id="disp-postal_code">{{ user.profile.postal_code|default:"—" }}</span></p>
+                        <button class="btn btn-primary btn-sm" id="edit-profile-btn">Редактировать</button>
+                        <a href="{% url 'settings' %}" class="btn btn-outline-secondary btn-sm">Настройки</a>
+                    </div>
+
+                    <div id="profile-edit" style="display:none;">
+                        <form id="profile-form">
+                            {% csrf_token %}
+                            <div class="mb-2">
+                                <label class="form-label">Имя</label>
+                                <input type="text" class="form-control" id="edit-full_name" value="{{ user.profile.full_name }}">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Телефон</label>
+                                <input type="text" class="form-control" id="edit-phone" value="{{ user.profile.phone }}">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Адрес</label>
+                                <textarea class="form-control" id="edit-address">{{ user.profile.address }}</textarea>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Город доставки</label>
+                                <input type="text" class="form-control" id="edit-city" value="{{ user.profile.city }}">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Индекс</label>
+                                <input type="text" class="form-control" id="edit-postal_code" value="{{ user.profile.postal_code }}">
+                            </div>
+                            <button type="submit" class="btn btn-success btn-sm">Сохранить</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="cancel-edit-btn">Отмена</button>
+                        </form>
+                        <div id="profile-msg" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card">
+                <div class="card-header">Мои заказы</div>
+                <div class="card-body">
+                    <div id="orders-loading" class="text-center py-3">
+                        <div class="spinner-border" role="status"></div>
+                    </div>
+                    <div id="orders-content" style="display:none;"></div>
+                    <div id="orders-error" class="alert alert-danger" style="display:none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const csrftoken = getCookie('csrftoken');
+    const loginUrl = '{% url "login" %}';
+
+    document.getElementById('edit-profile-btn')?.addEventListener('click', function() {
+        document.getElementById('profile-display').style.display = 'none';
+        document.getElementById('profile-edit').style.display = 'block';
+    });
+
+    document.getElementById('cancel-edit-btn')?.addEventListener('click', function() {
+        document.getElementById('profile-display').style.display = 'block';
+        document.getElementById('profile-edit').style.display = 'none';
+        document.getElementById('profile-msg').innerHTML = '';
+    });
+
+    document.getElementById('profile-form')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const msg = document.getElementById('profile-msg');
+        msg.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Сохранение...';
+
+        const data = {
+            full_name: document.getElementById('edit-full_name').value,
+            phone: document.getElementById('edit-phone').value,
+            address: document.getElementById('edit-address').value,
+            city: document.getElementById('edit-city').value,
+            postal_code: document.getElementById('edit-postal_code').value,
+        };
+
+        fetch('/api/me/', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken,
+            },
+            body: JSON.stringify(data),
+        })
+        .then(handleResponse)
+        .then(result => {
+            msg.innerHTML = '<div class="alert alert-success py-1 mb-0">Профиль обновлён</div>';
+            document.getElementById('disp-full_name').textContent = result.full_name || '—';
+            document.getElementById('disp-phone').textContent = result.phone || '—';
+            document.getElementById('disp-address').textContent = result.address || '—';
+            document.getElementById('disp-city').textContent = result.city || '—';
+            document.getElementById('disp-postal_code').textContent = result.postal_code || '—';
+
+            setTimeout(() => {
+                document.getElementById('profile-display').style.display = 'block';
+                document.getElementById('profile-edit').style.display = 'none';
+                msg.innerHTML = '';
+            }, 1500);
+        })
+        .catch(err => {
+            if (err.status === 401 || err.status === 403) {
+                msg.innerHTML = '<div class="alert alert-danger py-1 mb-0">Ошибка доступа. <a href="' + loginUrl + '">Войдите</a> снова.</div>';
+            } else {
+                msg.innerHTML = '<div class="alert alert-danger py-1 mb-0">Ошибка при сохранении</div>';
+            }
+        });
+    });
+
+    function loadOrders() {
+        const loading = document.getElementById('orders-loading');
+        const content = document.getElementById('orders-content');
+        const error = document.getElementById('orders-error');
+
+        if (!loading) return;
+
+        fetch('/api/orders/', {
+            headers: { 'X-CSRFToken': csrftoken }
+        })
+        .then(handleResponse)
+        .then(orders => {
+            loading.style.display = 'none';
+            if (!orders.length) {
+                content.innerHTML = '<p class="text-muted">У вас пока нет заказов.</p>';
+                content.style.display = 'block';
+                return;
+            }
+            let html = '<div class="table-responsive"><table class="table table-sm">' +
+                '<thead><tr><th>№</th><th>Дата</th><th>Сумма</th><th></th></tr></thead><tbody>';
+            orders.forEach(o => {
+                const date = new Date(o.created_at).toLocaleDateString('ru-RU');
+                html += '<tr><td>' + o.id + '</td><td>' + date + '</td><td>' + o.total_price + ' Br</td>' +
+                    '<td><button class="btn btn-outline-primary btn-sm order-detail-btn" data-order=\'' +
+                    JSON.stringify(o).replace(/'/g, '&#39;') + '\'>Подробнее</button></td></tr>';
+            });
+            html += '</tbody></table></div><div id="order-detail-modal-content"></div>';
+            content.innerHTML = html;
+            content.style.display = 'block';
+
+            document.querySelectorAll('.order-detail-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const order = JSON.parse(this.dataset.order);
+                    showOrderDetail(order);
+                });
+            });
+        })
+        .catch(err => {
+            loading.style.display = 'none';
+            error.style.display = 'block';
+            if (err.status === 401) {
+                error.innerHTML = 'Вы не авторизованы. <a href="' + loginUrl + '">Войти</a>';
+            } else {
+                error.textContent = 'Ошибка загрузки заказов';
+            }
+        });
+    }
+
+    function showOrderDetail(order) {
+        let itemsHtml = '';
+        order.items.forEach(item => {
+            itemsHtml += '<tr><td>' + item.product_name + '</td><td>' + item.quantity +
+                '</td><td>' + item.price + ' Br</td><td>' + (item.quantity * item.price).toFixed(2) + ' Br</td></tr>';
+        });
+
+        const modalHtml = '<div class="modal fade" id="orderModal" tabindex="-1">' +
+            '<div class="modal-dialog"><div class="modal-content">' +
+            '<div class="modal-header"><h5 class="modal-title">Заказ №' + order.id + '</h5>' +
+            '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+            '<div class="modal-body"><p><strong>Дата:</strong> ' + new Date(order.created_at).toLocaleDateString('ru-RU') + '</p>' +
+            '<table class="table table-sm"><thead><tr><th>Товар</th><th>Кол-во</th><th>Цена</th><th>Сумма</th></tr></thead>' +
+            '<tbody>' + itemsHtml + '</tbody>' +
+            '<tfoot><tr><th colspan="3">Итого</th><th>' + order.total_price + ' Br</th></tr></tfoot></table></div>' +
+            '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button></div>' +
+            '</div></div></div>';
+
+        const container = document.getElementById('order-detail-modal-content');
+        container.innerHTML = modalHtml;
+        const modal = new bootstrap.Modal(document.getElementById('orderModal'));
+        modal.show();
+    }
+
+    function handleResponse(response) {
+        if (!response.ok) {
+            const err = new Error('HTTP ' + response.status);
+            err.status = response.status;
+            throw err;
+        }
+        return response.json();
+    }
+
+    loadOrders();
+})();
+</script>
+{% endblock %}

@@ -4,7 +4,6 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.contrib.auth.forms import UserCreationForm
-from django.shortcuts import render, redirect
 from django.db import transaction
 from django.core.mail import EmailMessage
 from django.conf import settings
@@ -12,16 +11,22 @@ from django.utils import timezone
 from io import BytesIO
 import openpyxl
 from rest_framework import viewsets
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
+from rest_framework.response import Response
 
 from .models import Product, Category, Manufacture
-from users.models import Cart, CartItem
+from users.models import Cart, CartItem, Profile
 from .models import Order, OrderItem
 from .serializers import (
     ProductSerializer,
     CategorySerializer,
     ManufacturerSerializer,
     CartSerializer,
-    CartItemSerializer
+    CartItemSerializer,
+    ProfileSerializer,
+    OrderSerializer,
+    OrderItemSerializer
 )
 
 def index(request):
@@ -37,36 +42,6 @@ def index(request):
 def get_user_cart(user):
     cart, created = Cart.objects.get_or_create(user=user)
     return cart
-
-def product_list(request):
-    products = Product.objects.select_related(
-        'category',
-        'manufacture'
-    ).all()
-
-    category_id = request.GET.get('category')
-    manufacture_id = request.GET.get('manufacture')
-    search_query = request.GET.get('q')
-
-    if category_id:
-        products = products.filter(category_id=category_id)
-
-    if manufacture_id:
-        products = products.filter(manufacture_id=manufacture_id)
-
-    if search_query:
-        products = products.filter(
-            Q(name__icontains=search_query) |
-            Q(descriptions__icontains=search_query)
-        )
-
-    context = {
-        'products': products,
-        'categories': Category.objects.all(),
-        'manufactures': Manufacture.objects.all(),
-    }
-
-    return render(request, 'shop/product_list.html', context)
 
 def product_detail(request, pk):
     product = get_object_or_404(
@@ -159,14 +134,53 @@ def cart_view(request):
 
     return render(request, 'shop/cart.html', context)
 
+from django import forms
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import login as auth_login
+
+
+class RegistrationForm(UserCreationForm):
+    full_name = forms.CharField(max_length=255, required=False, label='Имя',
+                                widget=forms.TextInput(attrs={'class': 'form-control'}))
+    phone = forms.CharField(max_length=20, required=False, label='Телефон',
+                            widget=forms.TextInput(attrs={'class': 'form-control'}))
+    address = forms.CharField(required=False, label='Адрес',
+                              widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}))
+    city = forms.CharField(max_length=100, required=False, label='Город доставки',
+                           widget=forms.TextInput(attrs={'class': 'form-control'}))
+    postal_code = forms.CharField(max_length=20, required=False, label='Индекс',
+                                  widget=forms.TextInput(attrs={'class': 'form-control'}))
+
+    class Meta(UserCreationForm.Meta):
+        fields = ('username', 'full_name', 'phone', 'address', 'city', 'postal_code')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.setdefault('class', 'form-control')
+
+    def save(self, commit=True):
+        user = super().save(commit=commit)
+        if commit:
+            profile = user.profile
+            profile.full_name = self.cleaned_data.get('full_name', '')
+            profile.phone = self.cleaned_data.get('phone', '')
+            profile.address = self.cleaned_data.get('address', '')
+            profile.city = self.cleaned_data.get('city', '')
+            profile.postal_code = self.cleaned_data.get('postal_code', '')
+            profile.save()
+        return user
+
+
 def register(request):
     if request.method == 'POST':
-        form = UserCreationForm(request.POST)
+        form = RegistrationForm(request.POST)
         if form.is_valid():
-            form.save()
-            return redirect('login')
+            user = form.save()
+            auth_login(request, user)
+            return redirect('profile')
     else:
-        form = UserCreationForm()
+        form = RegistrationForm()
 
     return render(request, 'registration/register.html', {'form': form})
 
@@ -255,31 +269,77 @@ def checkout(request):
         'order': order
     })
 
-def register(request):
-    if request.method == 'POST':
-        form = UserCreationForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return redirect('login')
-    else:
-        form = UserCreationForm()
 
-    return render(request, 'registration/register.html', {'form': form})
+@login_required
+def profile_view(request):
+    return render(request, 'shop/profile.html')
+
+
+from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth import update_session_auth_hash
+
+
+class BootstrapPasswordChangeForm(PasswordChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.setdefault('class', 'form-control')
+
+
+@login_required
+def settings_view(request):
+    msg = ''
+    msg_type = ''
+    if request.method == 'POST':
+        form = BootstrapPasswordChangeForm(request.user, request.POST)
+        if form.is_valid():
+            user = form.save()
+            update_session_auth_hash(request, user)
+            msg = 'Пароль успешно изменён'
+            msg_type = 'success'
+        else:
+            msg = 'Исправьте ошибки в форме'
+            msg_type = 'danger'
+    else:
+        form = BootstrapPasswordChangeForm(request.user)
+    return render(request, 'shop/settings.html', {
+        'form': form,
+        'msg': msg,
+        'msg_type': msg_type,
+    })
+
+
+from rest_framework.permissions import BasePermission
+
+
+class IsAdminOrReadOnly(BasePermission):
+    def has_permission(self, request, view):
+        if request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return True
+        return request.user.is_authenticated and request.user.profile.role == 'ADMIN'
+
+
+class IsAdminUser(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.profile.role == 'ADMIN'
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+    permission_classes = [IsAdminOrReadOnly]
 
 
 class ManufacturerViewSet(viewsets.ModelViewSet):
     queryset = Manufacture.objects.all()
     serializer_class = ManufacturerSerializer
+    permission_classes = [IsAdminOrReadOnly]
 
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+    permission_classes = [IsAdminOrReadOnly]
 
 
 class CartViewSet(viewsets.ModelViewSet):
@@ -290,6 +350,32 @@ class CartViewSet(viewsets.ModelViewSet):
 class CartItemViewSet(viewsets.ModelViewSet):
     queryset = CartItem.objects.all()
     serializer_class = CartItemSerializer
+
+
+class OrderViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = OrderSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return Order.objects.none()
+        if user.profile.role == 'ADMIN':
+            return Order.objects.all()
+        return Order.objects.filter(user=user)
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def me(request):
+    profile = request.user.profile
+    if request.method == 'PATCH':
+        serializer = ProfileSerializer(profile, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
+    serializer = ProfileSerializer(profile)
+    return Response(serializer.data)
 
 
 def product_list(request):

@@ -18,7 +18,23 @@ function getCookie(name) {
 
 const csrftoken = getCookie('csrftoken');
 
-
+function handleFetchError(response) {
+    if (response.status === 401 || response.status === 403) {
+        showAlert('Ошибка доступа. Пожалуйста, войдите снова.', 'danger');
+        setTimeout(() => {
+            window.location.href = '/accounts/login/';
+        }, 2000);
+        const err = new Error('HTTP ' + response.status);
+        err.status = response.status;
+        throw err;
+    }
+    if (!response.ok) {
+        const err = new Error('HTTP ' + response.status);
+        err.status = response.status;
+        throw err;
+    }
+    return response.json();
+}
 
 function showAlert(message, type = "success") {
 

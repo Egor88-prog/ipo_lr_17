@@ -3,7 +3,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>{% block title %}Магазин{% endblock %}</title>
+    <title>{% block title %}ТермосМаркет{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <!-- Bootstrap CSS -->
@@ -19,7 +19,7 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container">
         <a class="navbar-brand" href="{% url 'product_list' %}">
-            🛒 Магазин
+            🛒 ТермосМаркет
         </a>
 
         <div>
@@ -28,6 +28,9 @@
             </a>
 
             {% if user.is_authenticated %}
+                <a href="{% url 'profile' %}" class="btn btn-outline-light me-2">
+                    Личный кабинет
+                </a>
                 <a href="{% url 'cart' %}" class="btn btn-warning me-2">
                     Корзина
                 </a>
@@ -39,6 +42,9 @@
                     </button>
                 </form>
             {% else %}
+                <a href="{% url 'register' %}" class="btn btn-success me-2">
+                    Регистрация
+                </a>
                 <a href="{% url 'login' %}" class="btn btn-outline-light">
                     Войти
                 </a>
@@ -56,7 +62,7 @@
 <!-- ✅ Footer -->
 <footer class="bg-dark text-white text-center py-3 mt-auto">
     <div class="container">
-        © 2026 Магазин. Все права защищены.
+        © 2026 ТермосМаркет. Все права защищены.
     </div>
 </footer>
 

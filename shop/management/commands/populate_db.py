@@ -1,14 +1,16 @@
 from django.core.management.base import BaseCommand
-from shop.models import Category, Manufacture, Product
+from shop.models import Category, Manufacture, Product, Order, OrderItem
 
 
 class Command(BaseCommand):
     help = 'Populates DB with sample data'
 
     def handle(self, *args, **options):
-        if Category.objects.exists():
-            self.stdout.write('Data already exists, skipping')
-            return
+        OrderItem.objects.all().delete()
+        Order.objects.all().delete()
+        Product.objects.all().delete()
+        Category.objects.all().delete()
+        Manufacture.objects.all().delete()
 
         cat1 = Category.objects.create(name='Термосы')
         cat2 = Category.objects.create(name='Кружки')
